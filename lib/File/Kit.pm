@@ -143,6 +143,4 @@ File::Kit - Gather files and their metadata together in one place
     $kit->set(%kitmetadata);
     $kit->save;
 
-=back
-
 =cut
