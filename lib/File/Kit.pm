@@ -3,114 +3,124 @@ package File::Kit;
 use strict;
 use warnings;
 
-use vars qw($VERSION);
-$VERSION = '0.02';
+use File::Kvpar;
+use File::Copy qw(copy move);
 
-use constant APPEND => '>>';
-use constant WRITE  => '>';
+use vars qw($VERSION);
+$VERSION = '0.03';
+
+use constant ADDFILE => 'ADDFILE';
+use constant RMVFILE => 'RMVFILE';
 
 sub new {
     my $cls = shift;
     unshift @_, 'path' if @_ % 2;
-    my %self = @_;
-    my $path = $self{'_path'} = delete $self{'path'};
-    my $self = bless \%self, $cls;
+    my $self = bless {
+        'meta'  => {},
+        'files' => [],
+        'move' => \&move,
+        @_,
+    }, $cls;
+    $self->init;
+}
+
+sub path { $_[0]->{'path'} }
+
+sub init {
+    my ($self) = @_;
+    my $path = $self->path;
     -d $path ? $self->load($path) : $self->create($path) if defined $path;
     return $self;
 }
 
 sub load {
     my ($self, $path) = @_;
-    %$self = ( %$self, %{ rdkvfile("$path/kit.kv") } );
+    my $kitkv   = $self->{'kitkv'}   ||= File::Kvpar->new('<+', "$path/kit.kv");
+    my $fileskv = $self->{'fileskv'} ||= File::Kvpar->new('<+', "$path/files.kv");
+    $self->{'meta'} = $kitkv->head;
+    $self->{'files'} = [ $fileskv->elements ];
     return $self;
 }
 
 sub create {
     my ($self, $path) = @_;
-    mkdir $path or die "Can't make new kit $path: $!";
-    wrkvfile("$path/kit.kv", %$self);
+    mkdir $path         or die "Can't mkdir $path: $!";
+    mkdir "$path/files" or die "Can't mkdir $path/files: $!";
+    my $kitkv   = $self->{'kitkv'}   ||= File::Kvpar->new('>+', "$path/kit.kv");
+    my $fileskv = $self->{'fileskv'} ||= File::Kvpar->new('>+', "$path/files.kv");
+    $kitkv->write($self->{'meta'});
+    $self->{'files'} ||= [];
+    return $self;
 }
 
 sub edit {
     my ($self) = @_;
-    $self->{'_edits'} = [];
+    $self->{'edits'} ||= [];
     return $self;
 }
 
 sub add {
     my $self = shift;
-    push @{ $self->{'_edits'} ||= [] }, [ APPEND, 'files.kv', @_ ];
+    my $edits = $self->{'edits'} ||= [];
+    my @files;
+    foreach (@_) {
+        if (ref $_) {
+            @files % 2 or die;
+            push @files, $_;
+        }
+        else {
+            @files % 2 or push @files, {};
+            push @files, $_;
+        }
+    }
+    push @files, {} if @files % 2;
+    while (@files) {
+        my ($path, $meta) = splice @files, 0, 2;
+        push @$edits, [ ADDFILE, $path, $meta ];
+    }
     return $self;
 }
 
 sub save {
     my ($self) = @_;
     my %fh;
-    foreach (@{ $self->{'_edits'} || [] }) {
+    my $fileskv = $self->{'fileskv'};
+    my $root = $self->path;
+    my $edits = $self->{'edits'} ||= [];
+    while (@$edits) {
+        local $_ = shift;
         my ($action, @params) = @$_;
-        if ($action eq APPEND) {
-            my $f = shift @params;
-            my $fh = $fh{$f};
-            if (!$fh) {
-                open $fh, '>>', $self->path($f) or die;
-                $fh{$f} = $fh;
+        if ($action eq ADDFILE) {
+            @params == 2 or die;
+            my ($path, $meta) = @params;
+            my $name = basename($path);
+            $meta->{'origin'} = $path;
+            $meta->{'name'  } = $name;
+            my $newpath = "$root/files/$name";
+            if ($self->{'move'}->($path, $newpath)) {
+                $fileskv->append($meta);
             }
-            wrkvfile($fh, @params, { 'append' => 1 });
+            else {
+                die;
+            }
+        }
+        elsif ($action eq RMVFILE) {
+            die "RMVFILE not yet implemented";
+            @params == 1 or die;
+            my ($file) = @params;
+            my @filemeta = grep { $file eq $_->{'#'} } $fileskv->elements;
+            1;
         }
     }
+    @{ $self->{'edits'} } = ();
+    return $self;
 }
 
 sub files {
     my ($self) = @_;
     my $files = $self->{'files'} ||= [];
     return @$files if @$files;
-    return @$files = rdkvfile($self->file('files.kv'));
-}
-
-sub wrkvfile {
-    my $f = shift;
-    my $fh;
-    my %opt;
-    %opt = %{ pop(@_) } if ref($_[-1]) eq 'HASH';
-    return if !@_;
-    if (ref $f) {
-        $fh = $f;
-        seek $fh, 0, 2;  # Seek to end of file
-    }
-    else {
-        my $mode = $opt{'append'} ? '>>' : '>';
-        open $fh, $mode, $f or die "Can't open kit $f: $!";
-    }
-    my %kv = @_;
-    my $printed;
-    foreach my $k (sort grep { !/^_/ } keys %kv) {
-        my $v = $kv{$k};
-        $printed = 1, print $fh "$k $v\n" if defined $v && !ref $v;
-    }
-    print $fh "\n" if $printed;
-}
-
-sub rdkvfile {
-    my ($f) = @_;
-    open my $fh, '<', $f or die "Can't open $f: $!";
-    my @kv;
-    my %kv;
-    while (<$fh>) {
-        next if /^\s*#.*$/;  # Skip comments
-        chomp;
-        if (/^\s*$/) {
-            push @kv, { %kv };
-            %kv = ();
-            next;
-        }
-        my ($key, $val) = split /\s+/, $_, 2;
-        $kv{$key} = $val;
-    }
-    close $fh;
-    die "Empty file: $f" if !@kv;
-    return @kv if wantarray;
-    die "Multiple values in file: $f" if @kv > 1;
-    return $kv[0];
+    return @$files = $self->{'kvfiles'}->elements;
 }
 
 1;
@@ -124,9 +134,15 @@ File::Kit - Gather files and their metadata together in one place
 =head1 SYNOPSIS
 
     $kit = File::Kit->new($dir);
-    $kit = File::Kit->new(%meta);
     $kit = File::Kit->create($dir, %meta);
-    ...
+    $kit->add($filepath1, \%filemetadata1, $filepath2, \%filemetadata2, ...);
+    @filenames = $kit->files;
+    $file = $kit->file($filename);
+    $kit->remove(@filepaths);
+    $meta = $kit->get(@kitmetadatakeys);
+    $kit->set(%kitmetadata);
     $kit->save;
+
+=back
 
 =cut
