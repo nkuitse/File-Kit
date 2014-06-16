@@ -7,7 +7,7 @@ use File::Kvpar;
 use File::Copy qw(copy move);
 
 use vars qw($VERSION);
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 use constant ADDFILE => 'ADDFILE';
 use constant RMVFILE => 'RMVFILE';
