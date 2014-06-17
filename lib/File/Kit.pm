@@ -5,6 +5,7 @@ use warnings;
 
 use File::Kvpar;
 use File::Copy qw(copy move);
+use File::Basename qw(basename);
 
 use vars qw($VERSION);
 $VERSION = '0.05';
