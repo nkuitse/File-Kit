@@ -29,7 +29,7 @@ sub cmd_new {
     ) or usage;
     my $dir = shift @ARGV;
     die "fkit: kit already exists: $dir" if -e $dir;
-    my $kit = File::Kit->new($dir, argvmeta());
+    my $kit = File::Kit->new($dir, 'meta' => argvmeta());
     $kit->edit;
     while (@ARGV) {
         my $file = shift @ARGV;
@@ -69,9 +69,9 @@ sub cmd_add {
 # --- Helper functions
 
 sub argvmeta {
-    my %meta;
+    my %meta = @_;
     while (@ARGV) {
-        if ($ARGV[0] eq '--') {
+        if ($ARGV[0] =~ /^-[-f]$/) {
             shift @ARGV;
             last;
         }
@@ -87,7 +87,7 @@ sub argvmeta {
             last;
         }
     }
-    return %meta;
+    return \%meta;
 }
 
 # fkit new DIR [KEY=VALUE]...

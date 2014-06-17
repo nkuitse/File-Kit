@@ -7,7 +7,7 @@ use File::Kvpar;
 use File::Copy qw(copy move);
 
 use vars qw($VERSION);
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 use constant ADDFILE => 'ADDFILE';
 use constant RMVFILE => 'RMVFILE';
@@ -15,11 +15,15 @@ use constant RMVFILE => 'RMVFILE';
 sub new {
     my $cls = shift;
     unshift @_, 'path' if @_ % 2;
+    my %arg = @_;
     my $self = bless {
-        'meta'  => {},
+        'meta'  => {
+            '@' => 'kit',
+            '#' => $arg{'path'},
+        },
         'files' => [],
         'move' => \&move,
-        @_,
+        %arg,
     }, $cls;
     $self->init;
 }
@@ -69,13 +73,15 @@ sub add {
             push @files, $_;
         }
         else {
-            @files % 2 or push @files, {};
+            push @files, {} if @files % 2;
             push @files, $_;
         }
     }
     push @files, {} if @files % 2;
     while (@files) {
         my ($path, $meta) = splice @files, 0, 2;
+        $meta->{'@'} = 'file' if !defined $meta->{'@'};
+        $meta->{'#'} = $path  if !defined $meta->{'#'};
         push @$edits, [ ADDFILE, $path, $meta ];
     }
     return $self;
@@ -88,7 +94,7 @@ sub save {
     my $root = $self->path;
     my $edits = $self->{'edits'} ||= [];
     while (@$edits) {
-        local $_ = shift;
+        local $_ = shift @$edits;
         my ($action, @params) = @$_;
         if ($action eq ADDFILE) {
             @params == 2 or die;
