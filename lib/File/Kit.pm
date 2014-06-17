@@ -35,8 +35,8 @@ sub init {
 
 sub load {
     my ($self, $path) = @_;
-    my $kitkv   = $self->{'kitkv'}   ||= File::Kvpar->new('<+', "$path/kit.kv");
-    my $fileskv = $self->{'fileskv'} ||= File::Kvpar->new('<+', "$path/files.kv");
+    my $kitkv   = $self->{'kitkv'}   ||= File::Kvpar->new('+<', "$path/kit.kv");
+    my $fileskv = $self->{'fileskv'} ||= File::Kvpar->new('+<', "$path/files.kv");
     $self->{'meta'} = $kitkv->head;
     $self->{'files'} = [ $fileskv->elements ];
     return $self;
@@ -46,8 +46,8 @@ sub create {
     my ($self, $path) = @_;
     mkdir $path         or die "Can't mkdir $path: $!";
     mkdir "$path/files" or die "Can't mkdir $path/files: $!";
-    my $kitkv   = $self->{'kitkv'}   ||= File::Kvpar->new('>+', "$path/kit.kv");
-    my $fileskv = $self->{'fileskv'} ||= File::Kvpar->new('>+', "$path/files.kv");
+    my $kitkv   = $self->{'kitkv'}   ||= File::Kvpar->new('+>', "$path/kit.kv");
+    my $fileskv = $self->{'fileskv'} ||= File::Kvpar->new('+>', "$path/files.kv");
     $kitkv->write($self->{'meta'});
     $self->{'files'} ||= [];
     return $self;
