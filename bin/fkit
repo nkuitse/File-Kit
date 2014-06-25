@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use File::Kit;
+use File::Kvpar;
 use Getopt::Long
     qw(:config posix_default gnu_compat require_order bundling no_ignore_case);
 
@@ -26,17 +27,11 @@ sub cmd_new {
     my ($verbose);
     GetOptions(
         'v' => \$verbose,
-    ) or usage;
+    ) && @ARGV or usage;
     my $dir = shift @ARGV;
     die "fkit: kit already exists: $dir" if -e $dir;
     my $kit = File::Kit->new($dir, 'meta' => argvmeta());
-    $kit->edit;
-    while (@ARGV) {
-        my $file = shift @ARGV;
-        $kit->add($file, argvmeta());
-        print STDERR "added: $file\n" if $verbose;
-    }
-    $kit->save;
+    add_files_from_argv($kit, $verbose);
 }
 
 sub cmd_close {
@@ -54,19 +49,37 @@ sub cmd_add {
     my ($verbose);
     GetOptions(
         'v' => \$verbose,
-    ) or usage;
-    @ARGV > 1 or usage;
+    ) && @ARGV > 1 or usage;
     my $dir = shift @ARGV;
     die "fkit: kit does not exist: $dir" if ! -d $dir;
     my $kit = File::Kit->new($dir);
-    while (@ARGV) {
-        my $file = shift @ARGV;
-        $kit->add($file, argvmeta());
-        print STDERR "added: $file\n" if $verbose;
-    }
+    add_files_from_argv($kit, $verbose);
 }
 
 # --- Helper functions
+
+sub add_files_from_argv {
+    my ($kit, $verbose) = @_;
+    $kit->edit;
+    my $kvstdin;
+    while (@ARGV) {
+        my $file = shift @ARGV;
+        if ($file eq '-:') {
+            $kvstdin ||= File::Kvpar->new(\*STDIN);
+            while (my $meta = $kvstdin->read) {
+                # die if $meta->{'@'} ne 'file';
+                $file = $meta->{'#'};
+                $kit->add($file, $meta);
+                print STDERR "added: $file\n" if $verbose;
+            }
+        }
+        else {
+            $kit->add($file, argvmeta());
+            print STDERR "added: $file\n" if $verbose;
+        }
+    }
+    $kit->save;
+}
 
 sub argvmeta {
     my %meta = @_;

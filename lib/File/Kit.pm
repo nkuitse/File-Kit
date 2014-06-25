@@ -18,14 +18,13 @@ sub new {
     unshift @_, 'path' if @_ % 2;
     my %arg = @_;
     my $self = bless {
-        'meta'  => {
-            '@' => 'kit',
-            '#' => $arg{'path'},
-        },
+        'meta'  => {},
         'files' => [],
         'move' => \&move,
         %arg,
     }, $cls;
+    $self->{'meta'}{'@'} ||= 'kit';
+    $self->{'meta'}{'#'} ||= $arg{'path'};
     $self->init;
 }
 
@@ -40,6 +39,7 @@ sub init {
 
 sub load {
     my ($self, $path) = @_;
+    $self = $self->new($path) if !ref $self;
     my $kitkv   = $self->{'kitkv'}   ||= File::Kvpar->new('+<', "$path/kit.kv");
     my $fileskv = $self->{'fileskv'} ||= File::Kvpar->new('+<', "$path/files.kv");
     $self->{'meta'} = $kitkv->head;
@@ -49,6 +49,7 @@ sub load {
 
 sub create {
     my ($self, $path) = @_;
+    $self = $self->new($path) if !ref $self;
     mkdir $path         or die "Can't mkdir $path: $!";
     mkdir "$path/files" or die "Can't mkdir $path/files: $!";
     my $kitkv   = $self->{'kitkv'}   ||= File::Kvpar->new('+>', "$path/kit.kv");
