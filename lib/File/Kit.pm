@@ -8,7 +8,8 @@ use File::Copy qw(copy move);
 use File::Basename qw(basename);
 
 use vars qw($VERSION);
-$VERSION = '0.05';
+
+$VERSION = '0.06';
 
 use constant ADDFILE => 'ADDFILE';
 use constant RMVFILE => 'RMVFILE';
@@ -25,6 +26,7 @@ sub new {
     }, $cls;
     $self->{'meta'}{'@'} ||= 'kit';
     $self->{'meta'}{'#'} ||= $arg{'path'};
+    $self->{'move'} = &copy if $self->{'copy'};
     $self->init;
 }
 
