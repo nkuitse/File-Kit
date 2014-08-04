@@ -128,7 +128,7 @@ sub files {
     my ($self) = @_;
     my $files = $self->{'files'} ||= [];
     return @$files if @$files;
-    return @$files = $self->{'kvfiles'}->elements;
+    return @$files = $self->{'fileskv'}->elements;
 }
 
 1;
